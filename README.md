@@ -8,7 +8,7 @@ This is a simple program, which displays an easy to use GUI, with which you can 
 Then create a new video-device:\
 `sudo modprobe v4l2loopback video_nr=23`
 
-Check wheter this video device now exists:\
+Check whether this video device now exists:\
 `ls /dev | grep video23`\
 If this returns nothing, try to remove the module:\
 `sudo modprobe -r v4l2loopback`\
