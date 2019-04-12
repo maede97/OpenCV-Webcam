@@ -37,3 +37,6 @@ build/
 
 # Config
 config.txt
+
+# Any cascade file
+*.xml

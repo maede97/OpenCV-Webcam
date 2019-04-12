@@ -8,4 +8,5 @@ Camera = 0
 # Video=VIDEO_PATH
 
 # Face Cascade File
+# Best to use: https://github.com/opencv/opencv/data/haarcascades/haarcascade_frontalface_default.xml
 # FaceCascade=CASCADE_FILE
