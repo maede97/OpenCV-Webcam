@@ -7,13 +7,13 @@ This is a simple program, which displays an easy to use GUI, with which you can 
 
 Clone also the opencv-github-repository and build it using\
 ## openCV
-To install openCV, use the following steps:
+To install openCV, use the following steps:\
 `git clone https://github.com/opencv/opencv`\
 `cd opencv`\
 `mkdir build && cd build`\
 `cmake -D CMAKE_BUILD_TYPE=RELEASE -D CMAKE_INSTALL_PREFIX=/usr/local  -D WITH_FFMPEG=ON -D WITH_TBB=ON -D WITH_GTK=ON -D WITH_V4L=ON -D WITH_OPENGL=ON -D WITH_CUBLAS=ON -DWITH_QT=OFF -DCUDA_NVCC_FLAGS="-D_FORCE_INLINES" ..`\
 `make -j4`\
-`make install`
+`make install`\
 The special flags for the `cmake` command are needed for video-file-reading
 
 Then create a new video-device:\
