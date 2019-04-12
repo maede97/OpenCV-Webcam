@@ -31,4 +31,4 @@ Move into your cloned folder, then simply call\
 This will automatically create a build folder for you and create the binary.
 
 # Usage
-Run `./run.sh` from within the root folder, use `/dev/video23` as your source for your new video feed. Change behaviour of your feed using the GUI.
+Edit `sample_config.txt`, then run `./run.sh sample_config.txt` from within the root folder, use `/dev/video23` as your source for your new video feed. Change behaviour of your feed using the GUI.
