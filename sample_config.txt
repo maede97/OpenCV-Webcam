@@ -1,0 +1,8 @@
+# Choose Camera
+Camera = 0
+
+# Images to load
+# Image=IMAGE_PATH
+
+# Videos to load
+# Video=VIDEO_PATH

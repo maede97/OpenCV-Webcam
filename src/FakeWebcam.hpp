@@ -24,8 +24,15 @@ public:
         Video  // show video on click
     };
 
+    void readConfig(const char *filename);
+    void run();
+
+private:
+
+    struct VideoHolder;
+
     struct ClickableEffect;
-    
+
     void handleClick(int event, int x, int y);
     static void handleClick(int event, int x, int y, int, void *userdata);
 
@@ -37,12 +44,14 @@ public:
     void applyBlur(cv::Mat &in);
     void applyBrighter(cv::Mat &in, int a = 10);
     void applyDarker(cv::Mat &in, int a = 10);
+    void applyImage(cv::Mat &in, cv::Mat image);
+    void applyVideo(cv::Mat &in, VideoHolder* vh);
+
     void applyEffects(cv::Mat &in, cv::Mat &out);
-    void readConfig(const char *filename);
 
-    void run();
+    void placeImages(cv::Mat &in, int offset, int width, int height);
+    void placeVideos(cv::Mat& in, int offset, int width, int height);
 
-private:
     std::vector<ClickableEffect> allPossibleEffects;
     std::vector<ClickableEffect> appliedEffects;
 
@@ -54,8 +63,8 @@ private:
 
     int camera = 0;
 
-    std::vector<std::string> images;
-    std::vector<std::string> videos;
+    std::vector<cv::Mat> images;
+    std::vector<VideoHolder*> videos;
 };
 
 #endif

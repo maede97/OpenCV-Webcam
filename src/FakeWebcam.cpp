@@ -3,9 +3,49 @@
 #include <fstream>
 #include <iostream>
 
+struct FakeWebcam::VideoHolder
+{
+    VideoHolder()
+    {
+    }
+    ~VideoHolder()
+    {
+    }
+    VideoHolder(cv::String filename)
+    {
+        filename_ = filename;
+        cap = cv::VideoCapture(filename);
+        counter_ = 0;
+    }
+
+    cv::Mat peekImage() const { return currImage; }
+
+    cv::Mat getFrame()
+    {
+        counter_++;
+        if (counter_ == cap.get(cv::CAP_PROP_FRAME_COUNT) - 1)
+        {
+            counter_ = 0;
+            cap.release();
+            cap.open(filename_);
+        }
+        cv::Mat image;
+        cap >> image;
+        currImage = image;
+        return image;
+    }
+    cv::Mat currImage;
+    int counter_;
+    cv::VideoCapture cap;
+    cv::String filename_;
+};
+
 struct FakeWebcam::ClickableEffect
 {
-    ClickableEffect(int x, int y, int width, int height, cv::String name, FakeWebcam::EFFECT eff) : x_(x), y_(y), width_(width), height_(height), name_(name), eff_(eff)
+    ClickableEffect(int x, int y, int width, int height,
+                    cv::String name, FakeWebcam::EFFECT eff, cv::Mat image = cv::Mat(),
+                    VideoHolder *vh = nullptr)
+        : x_(x), y_(y), width_(width), height_(height), name_(name), eff_(eff), image_(image), vh_(vh)
     {
     }
     bool contains(int x, int y)
@@ -22,11 +62,17 @@ struct FakeWebcam::ClickableEffect
         return eff_;
     }
 
+    cv::Mat getImage() const { return image_; }
+
+    VideoHolder *getVideo() const { return vh_; }
+
     int x_;
     int y_;
     int width_;
     int height_;
+    cv::Mat image_;
     FakeWebcam::EFFECT eff_;
+    VideoHolder *vh_;
     cv::String name_;
 };
 
@@ -140,6 +186,40 @@ void FakeWebcam::applyDarker(cv::Mat &in, int a)
 {
     in.convertTo(in, -1, 1, -a);
 }
+
+void FakeWebcam::applyVideo(cv::Mat &in, VideoHolder *vh)
+{
+    cv::Mat image = vh->peekImage();
+    applyImage(in, image);
+}
+
+void FakeWebcam::applyImage(cv::Mat &in, cv::Mat image)
+{
+    applyBlack(in);
+    float fac_height = in.size().height / (1.0 * image.size().height);
+    float fac_width = in.size().width / (1.0 * image.size().width);
+
+    int img_height, img_width;
+
+    if (fac_height < fac_width)
+    {
+        // scale down on height
+        float factor = image.size().height / (1.0 * image.size().width);
+        img_height = in.size().height;
+        img_width = img_height / factor;
+        cv::resize(image, image, cv::Size(img_width, img_height));
+        image.copyTo(in(cv::Rect(0, 0, img_width, img_height)));
+    }
+    else
+    {
+        // scale down on width
+        float factor = image.size().width / (1.0 * image.size().height);
+        img_width = in.size().width;
+        img_height = img_width / factor;
+        cv::resize(image, image, cv::Size(img_width, img_height));
+        image.copyTo(in(cv::Rect(0, 0, img_width, img_height)));
+    }
+}
 void FakeWebcam::applyEffects(cv::Mat &in, cv::Mat &out)
 {
     cv::Size size = out.size();
@@ -147,6 +227,8 @@ void FakeWebcam::applyEffects(cv::Mat &in, cv::Mat &out)
     const int width = size.width / NCOLS;
 
     cv::Size newSize(width, height); // size of each effect
+
+    allPossibleEffects = std::vector<ClickableEffect>();
 
     // normal
     cv::Mat effect_none;
@@ -238,11 +320,11 @@ void FakeWebcam::readConfig(const char *filename)
         }
         else if (name == "Image")
         {
-            images.push_back(value);
+            images.push_back(cv::imread(value));
         }
         else if (name == "Video")
         {
-            videos.push_back(value);
+            videos.push_back(new VideoHolder(value));
         }
     }
 }
@@ -267,6 +349,9 @@ void FakeWebcam::run()
 
     const int Stream_Width = 400;
     const int Stream_Height = Stream_Width / factor;
+
+    const int Image_Width = 200;
+    const int Video_Width = 200;
 
     // create gui
     cv::namedWindow(WINDOW_NAME, cv::WINDOW_KEEPRATIO);
@@ -339,13 +424,22 @@ void FakeWebcam::run()
                 applyDarker(stream_image);
                 break;
             }
+            case EFFECT::Image:
+            {
+                applyImage(stream_image, e.getImage());
+                break;
+            }
+
+            case EFFECT::Video:
+                applyVideo(stream_image, e.getVideo());
+
             default:
                 break;
             }
         }
 
         cv::Mat show;
-        show.create(SHOW_HEIGHT, SHOW_WIDTH + Stream_Width, input_image.type());
+        show.create(SHOW_HEIGHT, SHOW_WIDTH + Stream_Width + Image_Width + Video_Width, input_image.type());
         applyBlack(show);
 
         output_image.copyTo(show(cv::Rect(0, 0, SHOW_WIDTH, SHOW_HEIGHT)));
@@ -353,6 +447,10 @@ void FakeWebcam::run()
         stream_small.create(Stream_Height, Stream_Width, input_image.type());
         cv::resize(stream_image, stream_small, stream_small.size());
         stream_small.copyTo(show(cv::Rect(SHOW_WIDTH, (SHOW_HEIGHT - Stream_Height) / 2, Stream_Width, Stream_Height)));
+
+        // copy images to show file
+        placeImages(show, SHOW_WIDTH + Stream_Width, Image_Width, SHOW_HEIGHT);
+        placeVideos(show, SHOW_WIDTH + Stream_Width + Image_Width, Video_Width, SHOW_HEIGHT);
 
         // show image
         cv::imshow(WINDOW_NAME, show);
@@ -366,5 +464,39 @@ void FakeWebcam::run()
         //stop when user presses ESC
         if (cv::waitKey(1000.0 / FPS) == 27)
             break;
+    }
+}
+
+void FakeWebcam::placeImages(cv::Mat &in, int offset, int width, int height)
+{
+    int amount = images.size();
+    int curr_h = 0;
+    for (cv::Mat &image : images)
+    {
+        cv::Mat temp(image.size(), image.type());
+        int h = image.size().height * width / image.size().width;
+
+        cv::resize(image, temp, cv::Size(width, h));
+        temp.copyTo(in(cv::Rect(offset, curr_h, width, h)));
+        allPossibleEffects.push_back(ClickableEffect(offset, curr_h, width, h, "Image", EFFECT::Image, image));
+        curr_h += h;
+    }
+}
+
+void FakeWebcam::placeVideos(cv::Mat &in, int offset, int width, int height)
+{
+    int amount = videos.size();
+    int curr_h = 0;
+    for (VideoHolder *vh : videos)
+    {
+        cv::Mat image = vh->getFrame();
+
+        cv::Mat temp(image.size(), image.type());
+        int h = image.size().height * width / image.size().width;
+
+        cv::resize(image, temp, cv::Size(width, h));
+        temp.copyTo(in(cv::Rect(offset, curr_h, width, h)));
+        allPossibleEffects.push_back(ClickableEffect(offset, curr_h, width, h, "Video", EFFECT::Video, cv::Mat(), vh));
+        curr_h += h;
     }
 }
