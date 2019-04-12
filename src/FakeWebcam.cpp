@@ -432,7 +432,7 @@ void FakeWebcam::run()
         std::vector<uchar> buff;
         cv::imencode(".jpg", stream_image, buff);
         // write buffer to stdout
-        //fwrite(buff.data(), buff.size(), 1, stdout);
+        fwrite(buff.data(), buff.size(), 1, stdout);
 
         //stop when user presses ESC
         if (cv::waitKey(1000.0 / FPS) == 27)
