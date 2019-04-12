@@ -6,3 +6,6 @@ Camera = 0
 
 # Videos to load
 # Video=VIDEO_PATH
+
+# Face Cascade File
+# FaceCascade=CASCADE_FILE

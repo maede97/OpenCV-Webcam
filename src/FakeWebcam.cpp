@@ -3,78 +3,7 @@
 #include <fstream>
 #include <iostream>
 
-struct FakeWebcam::VideoHolder
-{
-    VideoHolder()
-    {
-    }
-    ~VideoHolder()
-    {
-    }
-    VideoHolder(cv::String filename)
-    {
-        filename_ = filename;
-        cap = cv::VideoCapture(filename);
-        counter_ = 0;
-    }
-
-    cv::Mat peekImage() const { return currImage; }
-
-    cv::Mat getFrame()
-    {
-        counter_++;
-        if (counter_ == cap.get(cv::CAP_PROP_FRAME_COUNT) - 1)
-        {
-            counter_ = 0;
-            cap.release();
-            cap.open(filename_);
-        }
-        cv::Mat image;
-        cap >> image;
-        currImage = image;
-        return image;
-    }
-    cv::Mat currImage;
-    int counter_;
-    cv::VideoCapture cap;
-    cv::String filename_;
-};
-
-struct FakeWebcam::ClickableEffect
-{
-    ClickableEffect(int x, int y, int width, int height,
-                    cv::String name, FakeWebcam::EFFECT eff, cv::Mat image = cv::Mat(),
-                    VideoHolder *vh = nullptr)
-        : x_(x), y_(y), width_(width), height_(height), name_(name), eff_(eff), image_(image), vh_(vh)
-    {
-    }
-    bool contains(int x, int y)
-    {
-        return (x_ < x && x_ + width_ > x && y_ < y && y_ + height_ > y);
-    }
-    cv::String getName() const
-    {
-        return name_;
-    }
-
-    FakeWebcam::EFFECT getEffect() const
-    {
-        return eff_;
-    }
-
-    cv::Mat getImage() const { return image_; }
-
-    VideoHolder *getVideo() const { return vh_; }
-
-    int x_;
-    int y_;
-    int width_;
-    int height_;
-    cv::Mat image_;
-    FakeWebcam::EFFECT eff_;
-    VideoHolder *vh_;
-    cv::String name_;
-};
+#include "helper.cpp"
 
 FakeWebcam::FakeWebcam()
 {
@@ -299,6 +228,30 @@ void FakeWebcam::applyEffects(cv::Mat &in, cv::Mat &out)
     cv::resize(effect_darker, effect_darker, newSize);
     effect_darker.copyTo(out(cv::Rect(width * 2, height * 2, width, height)));
     allPossibleEffects.push_back(ClickableEffect(width * 2, height * 2, width, height, "Darker", EFFECT::Darker));
+
+    // Face Detection
+    cv::Mat effect_face;
+    in.copyTo(effect_face);
+    applyFaceDetection(effect_face);
+    cv::resize(effect_face, effect_face, newSize);
+    effect_face.copyTo(out(cv::Rect(0, height * 3, width, height)));
+    allPossibleEffects.push_back(ClickableEffect(0, height * 3, width, height, "Face", EFFECT::Face));
+
+    // Sepia
+    cv::Mat effect_sepia;
+    in.copyTo(effect_sepia);
+    applySepia(effect_sepia);
+    cv::resize(effect_sepia, effect_sepia, newSize);
+    effect_sepia.copyTo(out(cv::Rect(width, height * 3, width, height)));
+    allPossibleEffects.push_back(ClickableEffect(width, height * 3, width, height, "Sepia", EFFECT::Sepia));
+
+    // FishEye
+    cv::Mat effect_fisheye;
+    in.copyTo(effect_fisheye);
+    applyFishEye(effect_fisheye);
+    cv::resize(effect_fisheye, effect_fisheye, newSize);
+    effect_fisheye.copyTo(out(cv::Rect(width * 2, height * 3, width, height)));
+    allPossibleEffects.push_back(ClickableEffect(width * 2, height * 3, width, height, "FishEye", EFFECT::FishEye));
 }
 void FakeWebcam::readConfig(const char *filename)
 {
@@ -325,6 +278,10 @@ void FakeWebcam::readConfig(const char *filename)
         else if (name == "Video")
         {
             videos.push_back(new VideoHolder(value));
+        }
+        else if (name == "FaceCascade")
+        {
+            faceCascade.load(value);
         }
     }
 }
@@ -424,6 +381,21 @@ void FakeWebcam::run()
                 applyDarker(stream_image);
                 break;
             }
+            case EFFECT::Face:
+            {
+                applyFaceDetection(stream_image);
+                break;
+            }
+            case EFFECT::Sepia:
+            {
+                applySepia(stream_image);
+                break;
+            }
+            case EFFECT::FishEye:
+            {
+                applyFishEye(stream_image);
+                break;
+            }
             case EFFECT::Image:
             {
                 applyImage(stream_image, e.getImage());
@@ -446,6 +418,7 @@ void FakeWebcam::run()
         cv::Mat stream_small;
         stream_small.create(Stream_Height, Stream_Width, input_image.type());
         cv::resize(stream_image, stream_small, stream_small.size());
+
         stream_small.copyTo(show(cv::Rect(SHOW_WIDTH, (SHOW_HEIGHT - Stream_Height) / 2, Stream_Width, Stream_Height)));
 
         // copy images to show file
@@ -459,7 +432,7 @@ void FakeWebcam::run()
         std::vector<uchar> buff;
         cv::imencode(".jpg", stream_image, buff);
         // write buffer to stdout
-        fwrite(buff.data(), buff.size(), 1, stdout);
+        //fwrite(buff.data(), buff.size(), 1, stdout);
 
         //stop when user presses ESC
         if (cv::waitKey(1000.0 / FPS) == 27)
@@ -499,4 +472,86 @@ void FakeWebcam::placeVideos(cv::Mat &in, int offset, int width, int height)
         allPossibleEffects.push_back(ClickableEffect(offset, curr_h, width, h, "Video", EFFECT::Video, cv::Mat(), vh));
         curr_h += h;
     }
+}
+
+void FakeWebcam::applyFaceDetection(cv::Mat &in)
+{
+    if (faceCascade.empty())
+    {
+        return;
+    }
+    std::vector<cv::Rect> faces;
+    cv::Mat frameGray;
+    cv::cvtColor(in, frameGray, cv::COLOR_BGR2GRAY);
+    faceCascade.detectMultiScale(frameGray, faces, 1.1, 1);
+    for (cv::Rect &r : faces)
+    {
+        cv::Mat face_Rect = in(r);
+        face_Rect.setTo(cv::Scalar(0));
+    }
+}
+
+void FakeWebcam::applySepia(cv::Mat &in)
+{
+    cv::Mat kernel =
+        (cv::Mat_<float>(3, 3)
+             << 0.272,
+         0.534, 0.131,
+         0.349, 0.686, 0.168,
+         0.393, 0.769, 0.189);
+    cv::transform(in, in, kernel);
+}
+
+void FakeWebcam::applyFishEye(cv::Mat &in)
+{
+    const double Cx = in.cols / 2.;
+    const double Cy = in.rows / 2.;
+
+    const double k = 0.00002;
+    bool scale = false;
+
+    cv::Mat src;
+    in.copyTo(src);
+
+    cv::Mat mapx = cv::Mat(src.size(), CV_32FC1);
+    cv::Mat mapy = cv::Mat(src.size(), CV_32FC1);
+
+    int w = src.cols;
+    int h = src.rows;
+
+    cv::Vec4f props;
+    float xShift = FishEye::calc_shift(0, Cx - 1, Cx, k);
+    props[0] = xShift;
+    float newCenterX = w - Cx;
+    float xShift2 = FishEye::calc_shift(0, newCenterX - 1, newCenterX, k);
+
+    float yShift = FishEye::calc_shift(0, Cy - 1, Cy, k);
+    props[1] = yShift;
+    float newCenterY = w - Cy;
+    float yShift2 = FishEye::calc_shift(0, newCenterY - 1, newCenterY, k);
+
+    float xScale = (w - xShift - xShift2) / w;
+    props[2] = xScale;
+    float yScale = (h - yShift - yShift2) / h;
+    props[3] = yScale;
+
+    float *p = mapx.ptr<float>(0);
+
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
+            *p++ = FishEye::getRadialX(x, y, Cx, Cy, k, scale, props);
+        }
+    }
+
+    p = mapy.ptr<float>(0);
+    for (int y = 0; y < h; y++)
+    {
+        for (int x = 0; x < w; x++)
+        {
+            *p++ = FishEye::getRadialY(x, y, Cx, Cy, k, scale, props);
+        }
+    }
+    cv::remap(src, in, mapx, mapy, cv::INTER_LINEAR, cv::BORDER_CONSTANT);
 }
