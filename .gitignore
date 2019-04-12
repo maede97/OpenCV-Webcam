@@ -34,3 +34,6 @@
 # Folders
 .vscode/
 build/
+
+# Config
+config.txt
