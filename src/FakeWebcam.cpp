@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <ctime>
 
 #include "helper.cpp"
 
@@ -435,8 +436,16 @@ void FakeWebcam::run()
         fwrite(buff.data(), buff.size(), 1, stdout);
 
         //stop when user presses ESC
-        if (cv::waitKey(1000.0 / FPS) == 27)
+        int keyCode = cv::waitKey(1000.0 / FPS);
+        if (keyCode == 27)
             break;
+        if (keyCode == 32)
+        {
+            // space
+            // save image to disk
+            auto t = std::time(0);
+            cv::imwrite("screenshot" + std::to_string(t) + ".png", stream_image);
+        }
     }
 }
 
