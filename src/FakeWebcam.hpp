@@ -31,7 +31,7 @@ public:
     void run();
 
 private:
-    struct VideoHolder;
+    struct VideoHolder; // holds videos
 
     struct ClickableEffect;
 
@@ -52,13 +52,13 @@ private:
     void applySepia(cv::Mat &in);
     void applyFishEye(cv::Mat &in);
 
-    void applyEffects(cv::Mat &in, cv::Mat &out);
+    void applyEffects(cv::Mat &in, cv::Mat &out); // apply all effects onto GUI for showing
 
     void placeImages(cv::Mat &in, int offset, int width, int height);
     void placeVideos(cv::Mat &in, int offset, int width, int height);
 
-    std::vector<ClickableEffect> allPossibleEffects;
-    std::vector<ClickableEffect> appliedEffects;
+    std::vector<ClickableEffect> allPossibleEffects; // contains all effects possible
+    std::vector<ClickableEffect> appliedEffects; // contains all applied effects
 
     static const int NROWS = 4;
     static const int NCOLS = 3;
@@ -68,10 +68,10 @@ private:
 
     int camera = 0;
 
-    std::vector<cv::Mat> images;
-    std::vector<VideoHolder *> videos;
+    std::vector<cv::Mat> images; // holds all images
+    std::vector<VideoHolder *> videos; // holds all video files
 
-    cv::CascadeClassifier faceCascade;
+    cv::CascadeClassifier faceCascade; // holds the cascade file for face detection
 };
 
 #endif

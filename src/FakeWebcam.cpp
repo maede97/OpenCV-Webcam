@@ -6,12 +6,8 @@
 
 #include "helper.cpp"
 
-FakeWebcam::FakeWebcam()
-{
-}
-FakeWebcam::~FakeWebcam()
-{
-}
+FakeWebcam::FakeWebcam() {}
+FakeWebcam::~FakeWebcam() {}
 
 void FakeWebcam::handleClick(int event, int x, int y, int, void *userdata)
 {
